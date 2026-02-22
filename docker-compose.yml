@@ -1,0 +1,94 @@
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: mariadb
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD}
+      MYSQL_DATABASE: users_db
+      MYSQL_USER: ${MARIADB_USER}
+      MYSQL_PASSWORD: ${MARIADB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      - ./users/schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - monitor-net
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+  
+  users:
+    build: ./users
+    container_name: users
+    image: ghcr.io/arquisoft/yovi_en2b-users:latest
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_NAME: users_db
+      DB_USER: ${MARIADB_USER}
+      DB_PASSWORD: ${MARIADB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - monitor-net
+
+  webapp:
+    build:
+      context: ./webapp
+      args:
+        - VITE_API_URL=http://localhost:3000
+    container_name: webapp
+    image: ghcr.io/arquisoft/yovi_en2b-webapp:latest
+    ports:
+      - "80:80"
+    depends_on:
+      - users
+    networks:
+      - monitor-net
+
+  gamey:
+    build: ./gamey
+    container_name: gamey
+    image: ghcr.io/arquisoft/yovi_en2b-gamey:latest
+    ports:
+      - "4000:4000"
+    networks:
+      - monitor-net
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./users/monitoring/prometheus:/etc/prometheus
+    networks:
+      - monitor-net
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "9091:3000"
+    volumes:
+      - ./users/monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - monitor-net
+
+networks:
+  monitor-net:
+    driver: bridge
+
+volumes:
+  mariadb-data:
+    driver: local

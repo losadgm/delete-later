@@ -1,0 +1,14 @@
+node_modules/
+coverage/
+gamey/target/
+lcov.info
+docs/build/
+.env
+.env.test
+webapp/.env
+.vscode/
+dist/
+
+personal.md
+flamegraph.svg
+perf.data
