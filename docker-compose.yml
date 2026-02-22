@@ -63,6 +63,8 @@ services:
     depends_on:
       users:
         condition: service_healthy
+    networks:
+    - monitor-net
 
   gamey:
     build: ./gamey
